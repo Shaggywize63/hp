@@ -82,10 +82,32 @@ CREATE TABLE IF NOT EXISTS logs (
   created_at  TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS notifications (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  video_id    INTEGER REFERENCES videos(id) ON DELETE CASCADE,
+  type        TEXT NOT NULL,                    -- 'feedback' | 'request'
+  actor_id    INTEGER,
+  actor_name  TEXT,
+  party       TEXT,
+  message     TEXT,
+  created_at  TEXT NOT NULL
+);
+
 CREATE INDEX IF NOT EXISTS idx_assets_video   ON assets(video_id);
 CREATE INDEX IF NOT EXISTS idx_feedback_video ON feedback(video_id);
 CREATE INDEX IF NOT EXISTS idx_logs_video     ON logs(video_id);
+CREATE INDEX IF NOT EXISTS idx_notif_created  ON notifications(created_at);
 `);
+
+// ---- lightweight migrations for existing databases ------------------------
+function ensureColumn(table, col, ddl) {
+  const cols = db.prepare(`PRAGMA table_info(${table})`).all().map((c) => c.name);
+  if (!cols.includes(col)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${ddl}`);
+}
+ensureColumn('videos', 'screensaver_requested', 'screensaver_requested INTEGER NOT NULL DEFAULT 0');
+ensureColumn('videos', 'screensaver_requested_at', 'screensaver_requested_at TEXT');
+ensureColumn('videos', 'screensaver_requested_by', 'screensaver_requested_by TEXT');
+ensureColumn('users', 'notifications_seen_at', 'notifications_seen_at TEXT');
 
 const nowIso = () => new Date().toISOString();
 

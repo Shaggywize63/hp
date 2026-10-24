@@ -3,7 +3,7 @@
 const express = require('express');
 const { db, nowIso } = require('../db');
 const { authRequired } = require('../auth');
-const { logActivity } = require('../log');
+const { logActivity, notify } = require('../log');
 
 const router = express.Router();
 const VALID_PARTIES = ['HP', 'Arc WW', 'Kinematic'];
@@ -28,6 +28,7 @@ router.post('/videos/:id/feedback', authRequired, (req, res) => {
     .run(videoId, req.user.id, req.user.name, party, body, nowIso());
 
   logActivity({ videoId, actor: req.user, action: 'feedback_added', detail: `${party} feedback added` });
+  notify({ videoId, type: 'feedback', actor: req.user, party, message: body.slice(0, 160) });
   // posting feedback on a pending project marks it as under review
   if (video.status === 'pending') {
     db.prepare('UPDATE videos SET status = ?, updated_at = ? WHERE id = ?').run('under_review', nowIso(), videoId);

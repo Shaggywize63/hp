@@ -9,4 +9,11 @@ function logActivity({ videoId = null, actor = null, action, detail = '' }) {
   ).run(videoId, actor ? actor.id : null, actor ? actor.name : 'system', action, detail, nowIso());
 }
 
-module.exports = { logActivity };
+function notify({ videoId = null, type, actor = null, party = null, message = '' }) {
+  db.prepare(
+    `INSERT INTO notifications (video_id, type, actor_id, actor_name, party, message, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`
+  ).run(videoId, type, actor ? actor.id : null, actor ? actor.name : 'system', party, message, nowIso());
+}
+
+module.exports = { logActivity, notify };

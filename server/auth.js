@@ -22,7 +22,7 @@ function currentUser(req) {
   try {
     const payload = jwt.verify(token, JWT_SECRET);
     const user = db
-      .prepare('SELECT id, email, name, role, org, can_upload, active FROM users WHERE id = ?')
+      .prepare('SELECT id, email, name, role, org, can_upload, active, notifications_seen_at FROM users WHERE id = ?')
       .get(payload.uid);
     if (!user || !user.active) return null;
     return user;
