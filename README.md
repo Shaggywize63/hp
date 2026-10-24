@@ -75,8 +75,11 @@ Environment variables (all optional):
 |---|---|---|
 | `PORT` | `3000` | HTTP port |
 | `JWT_SECRET` | dev fallback | **Set this in production** to sign auth tokens |
+| `BASE_PATH` | _(none)_ | Serve under a sub-path, e.g. `BASE_PATH=/hp` → `https://host/hp`. Omit for the domain root. |
 
 Uploads are limited to **2 GB** per file.
+
+**Deploying to a server (e.g. Hostinger at `/hp`):** see **[DEPLOY.md](DEPLOY.md)**.
 
 ---
 
