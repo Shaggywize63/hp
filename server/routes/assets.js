@@ -37,7 +37,8 @@ router.post('/videos/:id/assets', authRequired, uploadRequired, upload.single('f
   let versionLabel = String(req.body.version_label || '').trim();
   if (!versionLabel) {
     if (kind === 'final') {
-      versionLabel = 'Final';
+      const n = db.prepare("SELECT COUNT(*) AS c FROM assets WHERE video_id = ? AND kind = 'final'").get(videoId).c;
+      versionLabel = n === 0 ? 'Final' : `Final ${n + 1}`;
     } else {
       const n = db.prepare("SELECT COUNT(*) AS c FROM assets WHERE video_id = ? AND kind = 'working'").get(videoId).c;
       versionLabel = `V${n + 1}`;
