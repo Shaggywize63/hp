@@ -76,6 +76,8 @@ Environment variables (all optional):
 | `PORT` | `3000` | HTTP port |
 | `JWT_SECRET` | dev fallback | **Set this in production** to sign auth tokens |
 | `BASE_PATH` | _(none)_ | Serve under a sub-path, e.g. `BASE_PATH=/hp` → `https://host/hp`. Omit for the domain root. |
+| `DATA_DIR` | `./data` | Where the SQLite database lives. Point at a persistent dir on managed hosts. |
+| `UPLOAD_DIR` | `./uploads` | Where uploaded videos are stored. Point at a persistent dir on managed hosts. |
 
 Uploads are limited to **2 GB** per file.
 

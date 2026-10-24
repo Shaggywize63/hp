@@ -5,7 +5,46 @@ site, so it needs a host that can run a persistent Node process. It is already
 **sub-path aware** — set `BASE_PATH=/hp` and it serves itself (pages, API,
 video streaming, downloads) under `/hp`.
 
-> **First, check what your Hostinger plan can do.** Log in to **hPanel** and look for:
+## Option 0 — Hostinger **Web Apps** (if your plan has it) ⭐
+
+Hostinger's **Web Apps** feature runs Node/Express apps directly — this app is
+compatible (Express backend, Node 18–24, npm). In **hPanel → Web Apps → Create**:
+
+| Field | Value |
+|---|---|
+| Source | **GitHub** → repository `Shaggywize63/hp`, branch `main` |
+| Backend framework | **Express** (auto-detected) |
+| Node.js version | **22.x** |
+| Install command | `npm install` (default) |
+| Build command | *(leave empty — no build step)* |
+| Start command | `npm start` |
+
+**Environment variables** (add these):
+
+| Name | Value |
+|---|---|
+| `JWT_SECRET` | a long random string (e.g. 32+ chars) |
+| `BASE_PATH` | `/hp` *(set to match the path the app is served at — see note)* |
+| `DATA_DIR` | a path under your home that persists, e.g. `/home/<user>/hp-data` |
+| `UPLOAD_DIR` | a persistent path, e.g. `/home/<user>/hp-uploads` |
+
+**Notes**
+- **Path (`BASE_PATH`):** set it to whatever path Web Apps serves the app at.
+  If it serves at the domain root, use `BASE_PATH=/hp` to reach it at
+  `…/hp` (the bare root will then 404). If it gives you a subdomain, set
+  `BASE_PATH=` (empty) and use that subdomain. The front end adapts automatically.
+- **Persistence:** point `DATA_DIR`/`UPLOAD_DIR` at folders under your home dir so
+  the SQLite database and uploaded videos survive redeploys. Create them once
+  over SSH: `mkdir -p ~/hp-data ~/hp-uploads`.
+- After the first deploy, open the app, sign in as `s@kinematicapp.com` /
+  `Manvik@1221`, and change the password.
+
+> ⚠️ Shared hosting throttles CPU, RAM and storage. For a video upload/streaming
+> app with real usage, a small VPS (Option A) performs far better.
+
+---
+
+> **If you don't have Web Apps — check what else your plan can do.** Log in to **hPanel** and look for:
 > - a **VPS** entry (full SSH/root) → use **Option A**, or
 > - a **Node.js** section under your hosting plan (Business / Cloud) → use **Option B**.
 > - If you see neither, your plan is static/PHP shared hosting and **cannot run this app**.
