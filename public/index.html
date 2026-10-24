@@ -4,13 +4,16 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>HP Dynamic Screensaver Dashboard</title>
-  <link rel="stylesheet" href="/styles.css" />
+  <!-- Relative asset URLs + derived base path let the app run at the domain root
+       or under any sub-path (e.g. /hp) without a rebuild. -->
+  <script>window.__BASE_PATH__ = location.pathname.replace(/\/[^/]*$/, '');</script>
+  <link rel="stylesheet" href="styles.css" />
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='48' fill='%230096d6'/><text x='50' y='66' font-size='46' text-anchor='middle' fill='white' font-family='Arial' font-weight='bold'>hp</text></svg>" />
 </head>
 <body>
   <div id="app"></div>
   <div id="modal-root"></div>
   <div id="toast" class="toast"></div>
-  <script src="/app.js"></script>
+  <script src="app.js"></script>
 </body>
 </html>

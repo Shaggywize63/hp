@@ -4,6 +4,9 @@
    HP Dynamic Screensaver Dashboard — front-end (vanilla JS)
    ============================================================ */
 
+// Sub-path prefix (e.g. "/hp") derived in index.html; "" at the domain root.
+const BASE = (typeof window !== 'undefined' && window.__BASE_PATH__) || '';
+
 const State = {
   token: localStorage.getItem('hp_token') || null,
   user: null,
@@ -72,7 +75,7 @@ async function api(path, { method = 'GET', body, raw } = {}) {
   const headers = {};
   if (State.token) headers.Authorization = 'Bearer ' + State.token;
   if (body && !raw) headers['Content-Type'] = 'application/json';
-  const res = await fetch('/api' + path, {
+  const res = await fetch(BASE + '/api' + path, {
     method, headers, body: raw ? body : body ? JSON.stringify(body) : undefined,
   });
   if (res.status === 401) { logout(); throw new Error('Session expired. Please sign in again.'); }
@@ -90,7 +93,7 @@ function uploadAsset(videoId, file, kind, versionLabel, onProgress) {
     fd.append('kind', kind);
     if (versionLabel) fd.append('version_label', versionLabel);
     const xhr = new XMLHttpRequest();
-    xhr.open('POST', `/api/videos/${videoId}/assets`);
+    xhr.open('POST', `${BASE}/api/videos/${videoId}/assets`);
     xhr.setRequestHeader('Authorization', 'Bearer ' + State.token);
     xhr.upload.onprogress = (e) => { if (e.lengthComputable && onProgress) onProgress(e.loaded / e.total); };
     xhr.onload = () => {
@@ -473,7 +476,7 @@ function renderPlayer(assets) {
     return;
   }
   box.innerHTML = `
-    <video controls preload="metadata" src="/api/assets/${a.id}/stream?token=${encodeURIComponent(State.token)}"></video>
+    <video controls preload="metadata" src="${BASE}/api/assets/${a.id}/stream?token=${encodeURIComponent(State.token)}"></video>
     <div class="row" style="justify-content:space-between;margin-top:8px">
       <span class="muted">Now playing: <b>${esc(a.version_label)}</b> — ${esc(a.original_name)}</span>
       <button class="btn sm secondary" data-dl2="${a.id}">↓ Download this</button>
@@ -483,7 +486,7 @@ function renderPlayer(assets) {
 
 function downloadAsset(id) {
   const link = document.createElement('a');
-  link.href = `/api/assets/${id}/download?token=${encodeURIComponent(State.token)}`;
+  link.href = `${BASE}/api/assets/${id}/download?token=${encodeURIComponent(State.token)}`;
   document.body.appendChild(link); link.click(); link.remove();
 }
 
