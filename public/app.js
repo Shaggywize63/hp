@@ -517,10 +517,12 @@ function renderFeedbackList(feedback) {
 function uploadBox(kind) {
   return `<div class="upload-box" data-upload="${kind}" style="margin-top:12px">
     <div class="row">
-      <input type="file" accept="${kind === 'working' ? 'video/*' : 'video/*,.zip,.scr,.exe,.mp4,.mov'}" style="width:auto;flex:1">
+      <input type="file" multiple accept="${kind === 'working' ? 'video/*' : 'video/*,.zip,.scr,.exe,.mp4,.mov'}" style="width:auto;flex:1">
       <input type="text" placeholder="Version label (optional, e.g. ${kind === 'final' ? 'Final' : 'V1'})" style="width:auto;max-width:200px">
       <button class="btn sm" data-upbtn>Upload ${kind === 'final' ? 'final' : 'working'}</button>
     </div>
+    <div class="sub" style="margin-top:6px;color:var(--ink-soft)">Tip: select several files to upload multiple ${kind === 'final' ? 'final' : 'working'} versions at once — they'll be added as ${kind === 'final' ? 'Final, Final 2…' : 'V1, V2, V3…'}</div>
+    <div class="upstatus muted hidden" style="margin-top:6px"></div>
     <div class="progress hidden"><i></i></div>
   </div>`;
 }
@@ -532,14 +534,27 @@ function wireUpload(box, videoId) {
   const btn = box.querySelector('[data-upbtn]');
   const prog = box.querySelector('.progress');
   const bar = box.querySelector('.progress > i');
+  const status = box.querySelector('.upstatus');
   btn.addEventListener('click', async () => {
-    const file = fileInput.files[0];
-    if (!file) { toast('Choose a file first', true); return; }
-    btn.disabled = true; prog.classList.remove('hidden'); bar.style.width = '0%';
+    const files = Array.from(fileInput.files);
+    if (!files.length) { toast('Choose one or more files first', true); return; }
+    const baseLabel = labelInput.value.trim();
+    btn.disabled = true; prog.classList.remove('hidden');
     try {
-      await uploadAsset(videoId, file, kind, labelInput.value.trim(), (p) => { bar.style.width = Math.round(p * 100) + '%'; });
-      toast('Upload complete'); reopen(videoId);
-    } catch (err) { toast(err.message, true); btn.disabled = false; prog.classList.add('hidden'); }
+      for (let i = 0; i < files.length; i++) {
+        // With a custom label and several files, suffix the index; otherwise let
+        // the server auto-number (V1, V2… / Final, Final 2…).
+        const label = baseLabel ? (files.length > 1 ? `${baseLabel} ${i + 1}` : baseLabel) : '';
+        if (files.length > 1) {
+          status.classList.remove('hidden');
+          status.textContent = `Uploading ${i + 1} of ${files.length}: ${files[i].name}`;
+        }
+        bar.style.width = '0%';
+        await uploadAsset(videoId, files[i], kind, label, (p) => { bar.style.width = Math.round(p * 100) + '%'; });
+      }
+      toast(files.length > 1 ? `${files.length} files uploaded` : 'Upload complete');
+      reopen(videoId);
+    } catch (err) { toast(err.message, true); btn.disabled = false; prog.classList.add('hidden'); status.classList.add('hidden'); }
   });
 }
 
