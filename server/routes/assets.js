@@ -60,7 +60,10 @@ router.post('/videos/:id/assets', authRequired, uploadRequired, upload.single('f
   let newStatus = video.status;
   if (kind === 'final') newStatus = 'finalized';
   else if (video.status === 'pending') newStatus = 'under_review';
-  if (newStatus !== video.status) {
+  if (kind === 'final') {
+    // a final upload fulfils any outstanding screensaver request
+    db.prepare('UPDATE videos SET status = ?, screensaver_requested = 0, updated_at = ? WHERE id = ?').run(newStatus, nowIso(), videoId);
+  } else if (newStatus !== video.status) {
     db.prepare('UPDATE videos SET status = ?, updated_at = ? WHERE id = ?').run(newStatus, nowIso(), videoId);
   } else {
     db.prepare('UPDATE videos SET updated_at = ? WHERE id = ?').run(nowIso(), videoId);

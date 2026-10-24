@@ -12,7 +12,7 @@ const State = {
   user: null,
   stats: null,
   videos: [],
-  filter: { country: '', status: '', q: '' },
+  filter: { country: '', status: '', q: '', requested: false },
   view: 'dashboard',
 };
 
@@ -109,6 +109,8 @@ function uploadAsset(videoId, file, kind, versionLabel, onProgress) {
 /* ---------- auth ---------- */
 function logout() {
   State.token = null; State.user = null;
+  if (notifTimer) { clearInterval(notifTimer); notifTimer = null; }
+  Notif.items = []; Notif.unread = 0; Notif.open = false;
   localStorage.removeItem('hp_token');
   renderLogin();
 }
@@ -178,12 +180,14 @@ function renderApp() {
         ${isAdmin ? '<button data-view="users">Users</button>' : ''}
       </nav>
       <div class="usermenu">
+        <button class="bell" id="bellBtn" title="Notifications">🔔<span class="badge hidden" id="bellBadge">0</span></button>
         <div class="who hide-sm"><b>${esc(u.name)}</b><br><small>${esc(u.org)}${isAdmin ? ' · Admin' : u.can_upload ? ' · Can upload' : ''}</small></div>
         <div class="avatar" title="${esc(u.email)}">${esc(initials(u.name))}</div>
         <button class="btn sm secondary" id="pwBtn">Password</button>
         <button class="btn sm secondary" id="logoutBtn">Sign out</button>
       </div>
     </header>
+    <div id="notifRoot"></div>
     <main class="container" id="viewRoot"></main>`;
   $('#nav').addEventListener('click', (e) => {
     const b = e.target.closest('button[data-view]'); if (!b) return;
@@ -191,7 +195,68 @@ function renderApp() {
   });
   $('#logoutBtn').addEventListener('click', logout);
   $('#pwBtn').addEventListener('click', openChangePassword);
+  $('#bellBtn').addEventListener('click', toggleNotifications);
   renderNav(); renderView();
+  startNotifications();
+}
+
+/* ============================================================
+   NOTIFICATIONS
+   ============================================================ */
+let notifTimer = null;
+const Notif = { items: [], unread: 0, open: false };
+
+async function loadNotifications() {
+  try {
+    const data = await api('/notifications');
+    Notif.items = data.items; Notif.unread = data.unread;
+    updateBell();
+    if (Notif.open) renderNotifPop();
+    renderRecentFeedback();
+  } catch { /* ignore polling errors */ }
+}
+function startNotifications() {
+  loadNotifications();
+  if (notifTimer) clearInterval(notifTimer);
+  notifTimer = setInterval(loadNotifications, 30000);
+}
+function updateBell() {
+  const b = $('#bellBadge'); if (!b) return;
+  if (Notif.unread > 0) { b.textContent = Notif.unread > 99 ? '99+' : Notif.unread; b.classList.remove('hidden'); }
+  else b.classList.add('hidden');
+}
+async function toggleNotifications() {
+  Notif.open = !Notif.open;
+  if (!Notif.open) { $('#notifRoot').innerHTML = ''; return; }
+  renderNotifPop();
+  // mark seen
+  try { await api('/notifications/seen', { method: 'POST' }); Notif.unread = 0; updateBell(); } catch {}
+}
+function notifIcon(t) { return t === 'request' ? '📄' : '💬'; }
+function renderNotifPop() {
+  const root = $('#notifRoot'); if (!root) return;
+  const seenAt = (State.user && State.user.notifications_seen_at) || '';
+  const items = Notif.items;
+  root.innerHTML = `<div class="notif-pop">
+    <div class="nh"><span>Notifications</span><button class="btn ghost sm" id="notifClose">Close</button></div>
+    ${items.length ? items.map((n) => {
+      const label = n.type === 'request' ? 'Screensaver requested' : `${esc(n.party || '')} feedback`;
+      return `<div class="notif-item" data-nv="${n.video_id || ''}">
+        <div class="ic ${n.type}">${notifIcon(n.type)}</div>
+        <div class="nt">
+          <div class="nm"><b>${esc(n.code_name || 'Project')}</b> — ${label}</div>
+          ${n.message ? `<div class="sn">${esc(n.message)}</div>` : ''}
+          <div class="wh">${esc(n.actor_name || '')} · ${istDateTime(n.created_at)}</div>
+        </div>
+      </div>`;
+    }).join('') : '<div class="notif-empty">No notifications yet.</div>'}
+  </div>`;
+  $('#notifClose').addEventListener('click', toggleNotifications);
+  root.querySelectorAll('[data-nv]').forEach((el2) => el2.addEventListener('click', () => {
+    const vid = Number(el2.dataset.nv);
+    Notif.open = false; root.innerHTML = '';
+    if (vid) openDetail(vid);
+  }));
 }
 
 function renderNav() {
@@ -213,10 +278,12 @@ async function renderDashboard() {
     <div class="muted">Track each screensaver from briefing through review to finalized delivery.</div></div>
     <div><button class="btn" id="newBtn">+ New Project</button></div></div>
     <div class="stats" id="stats"></div>
+    <div id="recentFb"></div>
     <div class="toolbar" id="toolbar"></div>
     <div class="card" id="list"><div class="empty">Loading…</div></div>`;
   $('#newBtn').addEventListener('click', openNewProject);
   await refreshDashboard();
+  loadNotifications();
 }
 
 async function refreshDashboard() {
@@ -235,6 +302,7 @@ function queryString() {
   const p = new URLSearchParams();
   if (State.filter.country) p.set('country', State.filter.country);
   if (State.filter.status) p.set('status', State.filter.status);
+  if (State.filter.requested) p.set('requested', '1');
   if (State.filter.q) p.set('q', State.filter.q);
   const s = p.toString();
   return s ? '?' + s : '';
@@ -248,16 +316,41 @@ function renderStats() {
     ['under_review', 'Under Review', s.under_review, 'under_review'],
     ['completed', 'Completed', s.completed, 'completed'],
     ['finalized', 'Finalized', s.finalized, 'finalized'],
+    ['screensaver_requested', 'Screensaver Requested', s.screensaver_requested, '__req__'],
   ];
-  $('#stats').innerHTML = cards.map(([key, label, n, filterVal]) => `
-    <div class="stat s-${key} ${State.filter.status === filterVal && filterVal ? 'active' : ''}" data-status="${filterVal}">
+  $('#stats').innerHTML = cards.map(([key, label, n, filterVal]) => {
+    const active = filterVal === '__req__' ? State.filter.requested : (State.filter.status === filterVal && filterVal);
+    return `<div class="stat s-${key} ${active ? 'active' : ''}" data-status="${filterVal}">
       <div class="n">${n}</div><div class="l">${label}</div>
-    </div>`).join('');
+    </div>`;
+  }).join('');
   $('#stats').querySelectorAll('.stat').forEach((c) => c.addEventListener('click', () => {
     const st = c.dataset.status;
-    State.filter.status = (State.filter.status === st) ? '' : st;
+    if (st === '__req__') {
+      State.filter.requested = !State.filter.requested;
+    } else {
+      State.filter.status = (State.filter.status === st) ? '' : st;
+    }
     refreshDashboard();
   }));
+}
+
+function renderRecentFeedback() {
+  const box = document.getElementById('recentFb'); if (!box) return;
+  const fb = Notif.items.filter((n) => n.type === 'feedback').slice(0, 6);
+  if (!fb.length) { box.innerHTML = ''; return; }
+  box.innerHTML = `<div class="section recent-fb"><h3>Recent Feedback Received <span class="count-badge has">${fb.length}</span></h3><div class="body">
+    ${fb.map((n) => {
+      const cls = n.party === 'HP' ? 'hp' : n.party === 'Arc WW' ? 'arc' : 'kin';
+      return `<div class="section-row">
+        <span class="code2" data-nv="${n.video_id || ''}">${esc(n.code_name || 'Project')}</span>
+        <span class="party ${cls}" style="font-weight:800">${esc(n.party || '')}</span>
+        <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(n.message || '')}</span>
+        <span class="w">${esc(n.actor_name || '')} · ${istDateTime(n.created_at)}</span>
+      </div>`;
+    }).join('')}
+  </div></div>`;
+  box.querySelectorAll('[data-nv]').forEach((e2) => e2.addEventListener('click', () => { const v = Number(e2.dataset.nv); if (v) openDetail(v); }));
 }
 
 function renderToolbar() {
@@ -296,7 +389,7 @@ function renderList() {
         <td><span class="count-badge ${v.assets.working ? 'has' : ''}">${v.assets.working}</span></td>
         <td><span class="count-badge ${v.assets.final ? 'has' : ''}">${v.assets.final}</span></td>
         <td class="hide-sm"><span class="count-badge ${v.feedback_count ? 'has' : ''}">${v.feedback_count}</span></td>
-        <td><span class="pill ${v.status}">${STATUS_LABEL[v.status]}</span></td>
+        <td><span class="pill ${v.status}">${STATUS_LABEL[v.status]}</span>${v.screensaver_requested ? '<br><span class="req-flag" style="margin-top:4px">📄 Requested</span>' : ''}</td>
       </tr>`).join('')}
     </tbody></table>`;
   list.querySelectorAll('tr[data-id]').forEach((tr) => tr.addEventListener('click', () => openDetail(Number(tr.dataset.id))));
@@ -327,6 +420,12 @@ function renderDetail(data) {
   const finals = assets.filter((a) => a.kind === 'final');
   if (!detailState.playingAssetId && assets.length) detailState.playingAssetId = assets[assets.length - 1].id;
 
+  const requestBlock = v.status === 'finalized'
+    ? ''
+    : v.screensaver_requested
+      ? `<div class="req-banner"><div class="txt">📄 <b>Screensaver file requested</b>${v.screensaver_requested_by ? ` by ${esc(v.screensaver_requested_by)}` : ''}${v.screensaver_requested_at ? ` · ${istDateTime(v.screensaver_requested_at)}` : ''}.${canUpload ? ' Upload the final screensaver below to fulfil it.' : ''}</div></div>`
+      : `<div class="req-banner"><div class="txt">Need the final screensaver file for this project?</div><button class="btn warn" id="reqBtn">📄 Request Screensaver File</button></div>`;
+
   const root = document.getElementById('modal-root');
   root.innerHTML = `
   <div class="overlay"><div class="drawer">
@@ -354,6 +453,8 @@ function renderDetail(data) {
           ${metaItem('Promo / Accessory', v.promo)}
         </div>
       </div></div>
+
+      ${requestBlock}
 
       <!-- player -->
       <div class="section"><h3>Video Player</h3><div class="body" id="playerBox"></div></div>
@@ -416,6 +517,11 @@ function renderDetail(data) {
   // status change
   $('#statusSel').addEventListener('change', async (e) => {
     try { await api('/videos/' + v.id, { method: 'PATCH', body: { status: e.target.value } }); toast('Status updated'); reopen(v.id); }
+    catch (err) { toast(err.message, true); }
+  });
+  // request screensaver file
+  if ($('#reqBtn')) $('#reqBtn').addEventListener('click', async () => {
+    try { await api(`/videos/${v.id}/request-screensaver`, { method: 'POST' }); toast('Screensaver file requested'); reopen(v.id); }
     catch (err) { toast(err.message, true); }
   });
   // feedback tabs

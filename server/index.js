@@ -10,6 +10,7 @@ const usersRouter = require('./routes/users');
 const videosRouter = require('./routes/videos');
 const feedbackRouter = require('./routes/feedback');
 const assetsRouter = require('./routes/assets');
+const notificationsRouter = require('./routes/notifications');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -30,6 +31,7 @@ router.use('/api/users', usersRouter);
 router.use('/api/videos', videosRouter);
 router.use('/api', feedbackRouter); // /api/videos/:id/feedback , /api/feedback/:id
 router.use('/api', assetsRouter);   // /api/videos/:id/assets , /api/assets/:id/...
+router.use('/api', notificationsRouter); // /api/notifications , /api/notifications/seen
 
 router.get('/api/health', (req, res) => res.json({ ok: true, time: new Date().toISOString(), base: BASE || '/' }));
 
