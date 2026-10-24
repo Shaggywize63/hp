@@ -16,6 +16,21 @@ video streaming, downloads) under `/hp`.
 
 ## Option A — Hostinger VPS (recommended)
 
+### Fastest: one-shot script
+
+On the VPS (via SSH, or hPanel → **VPS → Browser terminal**), run:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Shaggywize63/hp/main/scripts/deploy-vps.sh | sudo bash
+```
+
+It installs Node + PM2 + nginx, clones the repo, starts the app under `/hp`
+with a generated `JWT_SECRET`, and prints the one nginx block to paste into your
+domain's vhost. Then `nginx -t && systemctl reload nginx` and open
+`https://<your-domain>/hp/`.
+
+### Or the manual steps
+
 SSH into the VPS, then:
 
 ```bash
