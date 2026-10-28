@@ -12,16 +12,9 @@ const STATUSES = ['pending', 'under_review', 'completed', 'finalized'];
 
 router.use(authRequired);
 
-function assetSummary(videoId) {
-  const rows = db
-    .prepare('SELECT kind, COUNT(*) AS c FROM assets WHERE video_id = ? GROUP BY kind')
-    .all(videoId);
-  const out = { working: 0, final: 0 };
-  for (const r of rows) out[r.kind] = r.c;
-  return out;
-}
-
-// GET /api/videos  — list with filters
+// GET /api/videos  — list with filters.
+// Asset and feedback counts are fetched in two aggregate queries (not per row)
+// to avoid an N+1 pattern that was slow on constrained hosting.
 router.get('/', (req, res) => {
   const { country, status, q, requested } = req.query;
   const where = [];
@@ -31,12 +24,26 @@ router.get('/', (req, res) => {
   if (requested === '1') { where.push('screensaver_requested = 1'); }
   if (q) { where.push('(code_name LIKE ? OR product_name LIKE ?)'); params.push(`%${q}%`, `%${q}%`); }
   const sql = `SELECT * FROM videos ${where.length ? 'WHERE ' + where.join(' AND ') : ''} ORDER BY id`;
-  const videos = db.prepare(sql).all(...params).map((v) => {
-    const counts = assetSummary(v.id);
-    const fb = db.prepare('SELECT COUNT(*) AS c FROM feedback WHERE video_id = ?').get(v.id).c;
-    return { ...v, assets: counts, feedback_count: fb };
+  const videos = db.prepare(sql).all(...params);
+
+  const assetCounts = new Map(); // video_id -> {working, final}
+  for (const r of db.prepare('SELECT video_id, kind, COUNT(*) AS c FROM assets GROUP BY video_id, kind').all()) {
+    const e = assetCounts.get(r.video_id) || { working: 0, final: 0 };
+    e[r.kind] = r.c;
+    assetCounts.set(r.video_id, e);
+  }
+  const fbCounts = new Map();
+  for (const r of db.prepare('SELECT video_id, COUNT(*) AS c FROM feedback GROUP BY video_id').all()) {
+    fbCounts.set(r.video_id, r.c);
+  }
+
+  res.json({
+    videos: videos.map((v) => ({
+      ...v,
+      assets: assetCounts.get(v.id) || { working: 0, final: 0 },
+      feedback_count: fbCounts.get(v.id) || 0,
+    })),
   });
-  res.json({ videos });
 });
 
 // GET /api/stats

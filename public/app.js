@@ -218,7 +218,15 @@ async function loadNotifications() {
 function startNotifications() {
   loadNotifications();
   if (notifTimer) clearInterval(notifTimer);
-  notifTimer = setInterval(loadNotifications, 30000);
+  // Poll only while the tab is visible, at a gentle interval, to keep load low
+  // on shared hosting.
+  notifTimer = setInterval(() => { if (!document.hidden) loadNotifications(); }, 60000);
+  if (!startNotifications._wired) {
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden && State.token) loadNotifications();
+    });
+    startNotifications._wired = true;
+  }
 }
 function updateBell() {
   const b = $('#bellBadge'); if (!b) return;
@@ -664,7 +672,7 @@ function wireUpload(box, videoId) {
   });
 }
 
-function reopen(id) { openDetail(id); refreshDashboardQuiet(); }
+function reopen(id) { openDetail(id); refreshDashboardQuiet(); loadNotifications(); }
 async function refreshDashboardQuiet() { if (State.view === 'dashboard') { try { await refreshDashboard(); } catch {} } }
 
 /* ============================================================

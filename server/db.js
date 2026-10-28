@@ -16,6 +16,11 @@ fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 const db = new Database(path.join(DATA_DIR, 'app.db'));
 db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');
+// Performance / concurrency tuning — important on constrained shared hosting:
+db.pragma('synchronous = NORMAL');   // far fewer fsyncs; safe with WAL
+db.pragma('busy_timeout = 8000');    // wait on a locked DB instead of erroring/hanging
+db.pragma('cache_size = -16000');    // ~16 MB page cache
+db.pragma('temp_store = MEMORY');
 
 db.exec(`
 CREATE TABLE IF NOT EXISTS users (
